@@ -23,6 +23,9 @@ let webHooks;
 let mqttClient;
 let wsClient;
 
+let camillaDSPConfig = {volumeMax: 40, volumeMin: -20};
+let stateMgmt = {volume: 0,};
+
 // Array of client's IP-addresses. Clients are Logitech Harmony Hubs
 let clients = [];
 
@@ -120,7 +123,7 @@ function connectWebsocketServer(){
 
         setTimeout(function timeout() {
             console.log('Sending GetVolume');
-            wsClient.send('"GetVersion"');
+            wsClient.send('"GetVolume"');
         }, 100);
 
         setTimeout(function timeout() {
@@ -137,14 +140,21 @@ function connectWebsocketServer(){
     wsClient.on('message', function message(data) {
         //console.log(`ws received: ${Date.now()} `, data);
 
-        console.log('received: %s', data);
+        console.log('WS received: %s', data);
 
+        if (data.indexOf('GetVolume') > -1){
+            let parsed = JSON.parse(Buffer.from(data).toString());
+            stateMgmt.volume = parsed.GetVolume.value;
+            console.log('WS stateMgmt volume', parsed.GetVolume.value);
+        }
 
-
+        /*
         setTimeout(function timeout() {
             //console.log('Sending GetVolume');
             //wsClient.send({"GetVolume"});
         }, 2000);
+
+         */
     });
 
     wsClient.on('error', function message(data) {
@@ -311,6 +321,9 @@ function configureWebserverRoutes() {
 function triggerAction(buttonFunction) {
     let buttonIndex = getButtonIndex(buttonFunction);
     let button = conf.buttons[buttonIndex];
+
+    colorout.log("debug", "[triggerAction] button: " + buttonFunction);
+
     if (button.enabled) {
         switch (button.action) {
             case "GET":
@@ -333,6 +346,57 @@ function triggerAction(buttonFunction) {
                 } else {
                     // TODO try reconnect
                     colorout.log("error", "[MQTT-Connection] MQTT not connected");
+                }
+                break;
+            case "WEBSOCKET":
+                if (wsClient && wsClient.readyState === wsClient.OPEN) {
+
+                    if (button.websocketMessage.indexOf('SetVolume') > -1
+                        && (button.websocketMessage.indexOf('changeBy') > -1)){
+                        // If the user has specified setVolume with a relative setting like +10 or -5
+
+                        let parsed = JSON.parse(button.websocketMessage);
+
+                        let max = 130;
+                        if (parsed.SetVolume.hasOwnProperty('max')){
+                            max = parsed.SetVolume.max;
+                        }
+                        let min = -100;
+                        if (parsed.SetVolume.hasOwnProperty('min')){
+                            min = parsed.SetVolume.min;
+                        }
+
+                        colorout.log("debug", "[WEBSOCKET-Connection] Relative volume change " + parsed.SetVolume);
+
+                        wsClient.send("\"GetVolume\"");
+
+                        setTimeout(function () {
+                            //{"SetVolume": {"value": 5, "type": "relative", "max": 40, "min":-20}}
+                            colorout.log("debug", "[WEBSOCKET-Connection] after timeout");
+
+                            let target = stateMgmt.volume + parsed.SetVolume.changeBy;
+                            if (target > max){
+                                target = max;
+                            }
+                            else if (target < min){
+                                target = min;
+                            }
+
+                            parsed.SetVolume = target;
+                            wsClient.send(JSON.stringify(parsed));
+
+                         }, 120);
+
+
+                    } else {
+                        wsClient.send(button.websocketMessage);
+                    }
+
+
+                    colorout.log("debug", "[WEBSOCKET-Connection] Sent websocket message: " + button.websocketMessage );
+                } else {
+                    // TODO try reconnect
+                    colorout.log("error", "[WEBSOCKET-Connection] WEBSOCKET not connected");
                 }
                 break;
             default:

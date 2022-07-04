@@ -51,16 +51,14 @@ buttons:
     enabled: false
   - id: 7
     name: Down
-    action: GET
-    url: 'https://www.example.com'
-    httpHeaders: {}
-    enabled: false
+    action: WEBSOCKET
+    websocketMessage: '{"SetVolume": {"changeBy": -3, "max": 30, "min":-35}}'
+    enabled: true
   - id: 8
     name: Up
-    action: GET
-    url: 'https://www.example.com'
-    httpHeaders: {}
-    enabled: false
+    action: WEBSOCKET
+    websocketMessage: '{"SetVolume": {"changeBy": 3, "max": 30, "min":-35}}'
+    enabled: true
   - id: 9
     name: Back
     action: GET
@@ -75,10 +73,9 @@ buttons:
     enabled: false
   - id: 11
     name: Info
-    action: GET
-    url: 'https://www.example.com'
-    httpHeaders: {}
-    enabled: false
+    action: WEBSOCKET
+    websocketMessage: '"GetVolume"'
+    enabled: true
   - id: 12
     name: Backspace
     action: GET
