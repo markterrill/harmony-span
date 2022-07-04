@@ -24,7 +24,7 @@ let mqttClient;
 let wsClient;
 
 let camillaDSPConfig = {volumeMax: 40, volumeMin: -20};
-let stateMgmt = {volume: 0,};
+let stateMgmt = {volume: 0, muted: false};
 
 // Array of client's IP-addresses. Clients are Logitech Harmony Hubs
 let clients = [];
@@ -147,6 +147,12 @@ function connectWebsocketServer(){
             stateMgmt.volume = parsed.GetVolume.value;
             console.log('WS stateMgmt volume', parsed.GetVolume.value);
         }
+        if (data.indexOf('GetMute') > -1){
+            let parsed = JSON.parse(Buffer.from(data).toString());
+            stateMgmt.muted = parsed.GetMute.value;
+            console.log('WS stateMgmt muted', stateMgmt.muted);
+        }
+
 
         /*
         setTimeout(function timeout() {
@@ -388,7 +394,24 @@ function triggerAction(buttonFunction) {
                          }, 120);
 
 
-                    } else {
+                    }
+                    else if (button.websocketMessage.indexOf('SetMute') > -1 && button.websocketMessage.indexOf('toggle') > -1){
+                        // Change it into a current state toggle
+                        let parsed = JSON.parse(button.websocketMessage);
+                        //colorout.log("debug", "[WEBSOCKET-Connection] SetMute toggle " + parsed);
+                        wsClient.send("\"GetMute\"");
+                        setTimeout(function () {
+                            //{"SetVolume": {"value": 5, "type": "relative", "max": 40, "min":-20}}
+
+                            parsed.SetMute = !stateMgmt.muted;
+
+                            colorout.log("debug", "[WEBSOCKET-Connection] sending SetMute " + parsed.SetMute );
+
+                            wsClient.send(JSON.stringify(parsed));
+                        }, 120);
+                    }
+
+                    else {
                         wsClient.send(button.websocketMessage);
                     }
 

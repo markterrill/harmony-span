@@ -18,12 +18,12 @@ buttons:
   - id: 1
     name: Rev
     action: WEBSOCKET
-    websocketMessage: '{"SetMute":true}'
+    websocketMessage: '{"SetMute":"toggle"}'
     enabled: true
   - id: 2
     name: Fwd
     action: WEBSOCKET
-    websocketMessage: '{"SetMute":false}'
+    websocketMessage: '{"SetMute":"toggle"}'
     enabled: true
   - id: 3
     name: Play
