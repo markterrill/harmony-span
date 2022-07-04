@@ -5,26 +5,26 @@ mqttConfig:
   serverUrl: 'mqtt://localhost'
   serverUsername: harmony
   serverPassword: harmony
-  enabled: false
+  enabled: true
+websocketConfig:
+  serverUrl: 'ws://192.168.1.135:1234'
+  enabled: true
 buttons:
   - id: 0
     name: Home
-    action: GET
-    url: 'https://www.example.com'
-    httpHeaders: {}
-    enabled: false
+    action: WEBSOCKET
+    websocketMessage: '"GetVersion"'
+    enabled: true
   - id: 1
     name: Rev
-    action: GET
-    url: 'https://www.example.com'
-    httpHeaders: {}
-    enabled: false
+    action: WEBSOCKET
+    websocketMessage: '{"SetMute":true}'
+    enabled: true
   - id: 2
     name: Fwd
-    action: GET
-    url: 'https://www.example.com'
-    httpHeaders: {}
-    enabled: false
+    action: WEBSOCKET
+    websocketMessage: '{"SetMute":false}'
+    enabled: true
   - id: 3
     name: Play
     action: GET

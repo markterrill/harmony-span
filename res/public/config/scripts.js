@@ -7,6 +7,7 @@ var Button = Backbone.Model.extend({
         postPayload: "",
         mqttTopic: "",
         mqttMessage: "",
+        websocketMessage: "",
         action: "",
         enabled: false
     }
@@ -14,6 +15,10 @@ var Button = Backbone.Model.extend({
 
 var MqttConfig = Backbone.Model.extend({
     url: '/mqttconfig'
+});
+
+var WebsocketConfig = Backbone.Model.extend({
+    url: '/websocketconfig'
 });
 
 var ButtonCollection = Backbone.Collection.extend({
@@ -40,6 +45,10 @@ var ButtonRowView = Backbone.View.extend({
         "<% if (action == \"MQTT\") { %>" +
         "<td><code>[<strong><%= action %></strong>] <%= mqttTopic %></code></td>\n" +
         "<td><%= mqttMessage %></td>\n" +
+        "<% } %>" +
+        "<% if (action == \"WEBSOCKET\") { %>" +
+        "<td><code>[<strong><%= action %></strong>] </code></td>\n" +
+        "<td><%= websocketMessage %></td>\n" +
         "<% } %>" +
         "<td><%= enabled ? \"yes\" : \"no\" %></td>\n" +
         "<td><a href=\"#button/<%= id %>\" class=\"edit btn btn-sm btn-primary\">edit</a></td>"
@@ -115,6 +124,7 @@ var ButtonConfigView = Backbone.View.extend({
         "<option value=\"GET\"<% if(mode == \"GET\") { %> selected<% } %>>Call Webhook with HTTP GET</option>\n" +
         "<option value=\"POST\"<% if(mode == \"POST\") { %> selected<% } %>>Call Webhook with HTTP POST</option>\n" +
         "<option value=\"MQTT\"<% if(mode == \"MQTT\") { %> selected<% } %>>Send MQTT Message</option>\n" +
+        "<option value=\"WEBSOCKET\"<% if(mode == \"WEBSOCKET\") { %> selected<% } %>>Send Websocket Message</option>\n" +
         "</select>\n" +
         "</div>\n" +
         "<% if(mode==\"GET\" || mode==\"POST\") { %>" +
@@ -140,6 +150,11 @@ var ButtonConfigView = Backbone.View.extend({
         "<div class=\"form-group\">\n" +
         "<label for=\"mqttTopic\">MQTT Message</label>\n" +
         "<textarea class=\"form-control\" id=\"mqttMessage\" required><%= mqttMessage %></textarea>\n" +
+        "</div>\n" +
+        "<% } else if (mode == \"WEBSOCKET\") { %>" +
+        "<div class=\"form-group\">\n" +
+        "<label for=\"websocketMessage\">MQTT Message</label>\n" +
+        "<textarea class=\"form-control\" id=\"websocketMessage\" required><%= websocketMessage %></textarea>\n" +
         "</div>\n" +
         "<% } %>" +
         "<div class=\"form-group form-check\">\n" +
@@ -199,6 +214,16 @@ var ButtonConfigView = Backbone.View.extend({
                 action: action,
                 mqttTopic: this.$el.find("#mqttTopic").val().trim(),
                 mqttMessage : this.$el.find("#mqttMessage").val().trim(),
+                enabled: enabled
+            });
+        }
+        else if (action == "WEBSOCKET") {
+            this.model.clear();
+            this.model.set({
+                id: id,
+                name: name,
+                action: action,
+                websocketMessage : this.$el.find("#websocketMessage").val().trim(),
                 enabled: enabled
             });
         }
@@ -268,6 +293,52 @@ var MqttConfigView = Backbone.View.extend({
     }
 });
 
+
+var WebsocketConfigView = Backbone.View.extend({
+    tagName: "div",
+    model: WebsocketConfig,
+    template: _.template(
+        "<div class=\"header\">" +
+        "<h2>Websocket Configuration</h2>\n" +
+        "</div>\n" +
+        "<form>\n" +
+        "<div class=\"form-group\">\n" +
+        "<label for=\"serverUrl\">Server-URL</label>\n" +
+        "<input type=\"text\" class=\"form-control\" id=\"serverUrl\" value=\"<%= serverUrl %>\" required pattern=\"ws://[a-z.-:0-9]{1,240}\">\n" +
+        "</div>\n" +
+        "<div class=\"form-group form-check\">\n" +
+        "    <input type=\"checkbox\" class=\"form-check-input\" id=\"websocketEnabled\"<% if(enabled) { %> checked<% } %>>\n" +
+        "    <label class=\"form-check-label\" for=\"websocketEnabled\">Enabled</label>\n" +
+        "</div>\n" +
+        "<button type=\"submit\" class=\"btn btn-primary\">Apply</button>\n" +
+        "</form>"
+    ),
+    events: {
+        "submit form": "handleSubmit"
+    },
+    render: function() {
+        this.$el.html(this.template(this.model.attributes));
+        return this;
+    },
+    handleSubmit: function(event) {
+        event.preventDefault();
+        this.model.set({
+            serverUrl: this.$el.find("#serverUrl").val(),
+            //serverUsername: this.$el.find("#serverUsername").val(),
+            //serverPassword: this.$el.find("#serverPassword").val(),
+            enabled: this.$el.find("#websocketEnabled").prop('checked')
+        });
+        this.listenToOnce(this.model, "sync", this.handleSave);
+        navbar.startSpinning();
+        this.model.save();
+    },
+    handleSave: function() {
+        navbar.stopSpinning();
+        router.navigate("index", { trigger: true, replace: true });
+    }
+});
+
+
 var buttons = new ButtonCollection();
 
 var buttonsTableView = new ButtonTableView({
@@ -277,6 +348,8 @@ var buttonsTableView = new ButtonTableView({
 var router;
 
 var mqttConfig = new MqttConfig();
+
+var websocketConfig = new WebsocketConfig();
 
 let container = $("#container");
 
@@ -297,6 +370,9 @@ var NavbarView = Backbone.View.extend({
         "        </li>\n" +
         "        <li class=\"nav-item<% if(section ==\"mqtt\") { %> active<% } %>\">\n" +
         "            <a href=\"#mqtt\" class=\"nav-link\">MQTT-Config</a>\n" +
+        "        </li>\n" +
+        "        <li class=\"nav-item<% if(section ==\"websocket\") { %> active<% } %>\">\n" +
+        "            <a href=\"#websocket\" class=\"nav-link\">Websocket-Config</a>\n" +
         "        </li>\n" +
         "    </ul>\n" +
         "<div class=\"spinner-border text-light\" role=\"status\">\n" +
@@ -327,7 +403,8 @@ var ButtonsRouter = Backbone.Router.extend({
         "": "redirectToIndex",
         "index": "showIndex",
         "button/:id": "showButtonConfig",
-        "mqtt": "showMqttConfig"
+        "mqtt": "showMqttConfig",
+        "websocket": "showWebsocketConfig"
     },
 
     redirectToIndex: function() {
@@ -369,6 +446,19 @@ var ButtonsRouter = Backbone.Router.extend({
                 navbar.changeSection("mqtt");
             }
          });
+    },
+
+    showWebsocketConfig() {
+        navbar.startSpinning();
+        let websocketConfigView = new WebsocketConfigView({
+            model: websocketConfig
+        });
+        websocketConfig.fetch({
+            success: function(model, response, options) {
+                container.html(websocketConfigView.render().$el);
+                navbar.changeSection("websocket");
+            }
+        });
     }
 });
 

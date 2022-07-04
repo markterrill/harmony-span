@@ -8,6 +8,7 @@ const request = require("request");
 const mqtt = require("mqtt");
 const yaml = require("node-yaml");
 const ip = require("ip");
+const WebSocket = require('ws');
 
 const CONFIG_FILE = "../res/config.yaml";
 const DEFAULT_HOST = "127.0.0.1";
@@ -20,6 +21,7 @@ let app;
 let server;
 let webHooks;
 let mqttClient;
+let wsClient;
 
 // Array of client's IP-addresses. Clients are Logitech Harmony Hubs
 let clients = [];
@@ -80,6 +82,14 @@ function init() {
         connectMqttServer();
     }
 
+    let websocketConfig = conf.websocketConfig;
+    console.log('websocketConfig', websocketConfig);
+    if (typeof websocketConfig !== 'undefined' && websocketConfig.hasOwnProperty("enabled") && websocketConfig.enabled == true && websocketConfig.hasOwnProperty("serverUrl")) {
+
+        console.log('hi there');
+        wsClient = connectWebsocketServer();
+    }
+
     if (host == "0.0.0.0") {
         colorout.log("info", "[Webserver] Configuration Menu available at http://" + ip.address() + ":" + port + "/config/");
     } else {
@@ -92,6 +102,59 @@ function attachWebhooks() {
         webHooks.remove(button.name);
         if (button.action == "POST") webHooks.add(button.name, button.url);
     });
+}
+
+function connectWebsocketServer(){
+
+
+
+    console.log('connectWebsocketServer will try ', conf.websocketConfig.serverUrl);
+    wsClient = new WebSocket(conf.websocketConfig.serverUrl , { },
+
+        //{headers: {Connection: 'Upgrade',}}
+        );
+
+    wsClient.on('open', function open() {
+        console.log('WS connected');
+        //wsClient.send(Date.now());
+
+        setTimeout(function timeout() {
+            console.log('Sending GetVolume');
+            wsClient.send('"GetVersion"');
+        }, 100);
+
+        setTimeout(function timeout() {
+            let msg = JSON.stringify({"SetUpdateInterval": 500});
+            console.log('Sending SetUpdateInterval', msg);
+            wsClient.send(msg);
+        }, 1000);
+    });
+
+    wsClient.on('close', function close() {
+        console.log('WS disconnected');
+    });
+
+    wsClient.on('message', function message(data) {
+        //console.log(`ws received: ${Date.now()} `, data);
+
+        console.log('received: %s', data);
+
+
+
+        setTimeout(function timeout() {
+            //console.log('Sending GetVolume');
+            //wsClient.send({"GetVolume"});
+        }, 2000);
+    });
+
+    wsClient.on('error', function message(data) {
+        //console.log(`ws received: ${Date.now()} `, data);
+        console.log('WS error: %s', data);
+    });
+
+    return wsClient;
+
+
 }
 
 function connectMqttServer() {
@@ -168,6 +231,7 @@ function configureWebserverRoutes() {
         }
     });
 
+
     // set specific button's config
     app.put('/buttons/:id', function(req, res) {
         // TODO validate
@@ -209,6 +273,38 @@ function configureWebserverRoutes() {
     app.get('/mqttconnected', function(req, res) {
         res.set("Content-Type", "application/json");
         res.send("{\"connected\": " + mqttClient.connected + " }");
+    });
+
+    // get websocket server config
+    app.get('/websocketconfig', function(req, res) {
+        res.contentType('application/json');
+        res.send(JSON.stringify(conf.websocketConfig));
+    });
+
+    // set MQTT server config
+    app.post('/websocketconfig', function(req, res) {
+        let data = req.body;
+        let enabledBefore = conf.websocketConfig.enabled;
+        let enabledAfter = data.enabled;
+        if (enabledBefore != enabledAfter) {
+
+        }
+        conf.websocketConfig = data;
+        yaml.writeSync(CONFIG_FILE, conf);
+        colorout.log("debug", "[Core] Updated config file.");
+        if (enabledBefore != enabledAfter) {
+            if (enabledAfter) {
+                wsClient = connectWebsocketServer();
+            } else {
+                wsClient.close();
+            }
+        }
+        res.sendStatus(204);
+    });
+
+    app.get('/websocketconnected', function(req, res) {
+        res.set("Content-Type", "application/json");
+        res.send("{\"connected\": " + (wsClient.readyState === wsClient.OPEN ? true : false) + " }");
     });
 }
 
